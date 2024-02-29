@@ -97,11 +97,42 @@ export class PostService {
     await this.likesRepository.save(like);
 
     const post = await this.postsRepository.findOne({ where: { id: postId } });
+    if (!post) {
+      throw new NotFoundException('Post not found');
+    }
+
+    // Retrieve the liker's username
+    const liker = await this.usersRepository.findOne({ where: { id: userId } });
+    if (!liker) {
+      throw new NotFoundException('Liker not found');
+    }
+
+    // Assuming you have the post entity related to the user entity to get the post owner's ID
+    // Retrieve the post owner's details if needed (e.g., for getting the FCM token later on)
+    const postOwner = await this.usersRepository.findOne({
+      where: { id: post.userId },
+    });
+    if (!postOwner) {
+      throw new NotFoundException('Post owner not found');
+    }
 
     if (post) {
       post.likeCount += 1;
       await this.postsRepository.save(post);
+      this.postsGateway.emitPostLiked({
+        postId: post.id,
+        likeCount: post.likeCount,
+        likerUserId: userId,
+        likerUsername: liker.username,
+        postOwnerId: post.userId, // or postOwner.id if you need to ensure it's the same
+      });
     }
+  }
+
+  // Assuming you want to format numbers for display
+  private formatNumber(number: number): string {
+    // Example implementation - you can customize this as needed
+    return new Intl.NumberFormat().format(number);
   }
 
   async unlikePost(userId: string, postId: string): Promise<void> {
@@ -117,6 +148,10 @@ export class PostService {
       if (post) {
         post.likeCount = Math.max(0, post.likeCount - 1);
         await this.postsRepository.save(post);
+        this.postsGateway.emitPostUnliked({
+          postId: post.id,
+          likeCount: post.likeCount,
+        });
       }
     }
   }
@@ -327,6 +362,8 @@ export class PostService {
 
     const result = await this.postsRepository.delete({ id: postId });
 
+    this.postsGateway.emitDeletePost({ id: postId });
+
     // Check if any record was affected
     if (result.affected === 0) {
       throw new NotFoundException(`Post with ID "${postId}" not found`);
@@ -376,6 +413,8 @@ export class PostService {
 
     await this.postsRepository.save(post);
 
+    this.postsGateway.emitUpdatePost(post);
+
     return post;
   }
 
@@ -383,5 +422,13 @@ export class PostService {
     return await this.postsRepository.find({
       where: { caption: Like(`%#${hashTag}%`) },
     });
+  }
+
+  async getOnePost(id: string): Promise<Posts> {
+    const post = await this.postsRepository.findOne({ where: { id } });
+    if (!post) {
+      throw new NotFoundException(`Post with ID "${id}" not found`);
+    }
+    return post;
   }
 }

@@ -31,8 +31,29 @@ export class PostsGateway
 
   // Example: Emitting a new post to all connected clients
   public emitNewPost(post: any) {
-    console.log('Emitting new post', post);
+    console.log(post);
     this.server.emit('newPost', post);
-    console.log('New post emitted');
+  }
+
+  public emitDeletePost(post: any) {
+    this.server.emit('deletePost', post);
+  }
+
+  public emitUpdatePost(post: any) {
+    this.server.emit('updatePost', post);
+  }
+
+  public emitPostLiked(payload: {
+    postId: string;
+    likeCount: number;
+    likerUserId: string;
+    likerUsername: string;
+    postOwnerId: string;
+  }) {
+    this.server.emit('postLiked', payload);
+  }
+
+  public emitPostUnliked(payload: { postId: string; likeCount: number }) {
+    this.server.emit('postUnliked', payload);
   }
 }

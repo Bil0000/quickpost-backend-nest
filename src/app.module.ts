@@ -9,11 +9,11 @@ import { SearchController } from './services/search/search.controller';
   imports: [
     TypeOrmModule.forRoot({
       type: 'postgres',
-      host: 'dpg-cn79i3uct0pc738teka0-a',
+      host: 'localhost',
       port: 5432,
-      username: 'quickpost_zr61_user',
-      password: 'OuLKUExn3pQKA0996YtMY4aMCuepWj1g',
-      database: 'quickpost_zr61',
+      username: 'postgres',
+      password: 'postgres',
+      database: 'quickpost',
       autoLoadEntities: true,
       synchronize: true,
     }),

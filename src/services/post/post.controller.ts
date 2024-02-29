@@ -121,4 +121,9 @@ export class PostController {
   ): Promise<void> {
     return await this.postService.markPostAsSeen(user.id, postId);
   }
+
+  @Get('/:id')
+  getOnePost(@Param('id') id: string): Promise<Posts> {
+    return this.postService.getOnePost(id);
+  }
 }
