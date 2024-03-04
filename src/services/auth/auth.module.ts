@@ -15,6 +15,7 @@ import { Likes } from '../likes/like.entity';
 import { mutedusers } from '../mutedusers/mutedusers.entity';
 import { Block } from '../blocks/block.entity';
 import { MulterModule } from '@nestjs/platform-express';
+import { PostsGateway } from '../post/posts.gateway';
 
 @Module({
   imports: [
@@ -38,7 +39,7 @@ import { MulterModule } from '@nestjs/platform-express';
       dest: './uploads/profiles',
     }),
   ],
-  providers: [AuthService, JwtStrategy, OtpService, EmailService],
+  providers: [AuthService, JwtStrategy, OtpService, EmailService, PostsGateway],
   controllers: [AuthController],
   exports: [JwtStrategy, PassportModule, TypeOrmModule.forFeature([Users])],
 })

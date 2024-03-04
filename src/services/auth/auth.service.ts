@@ -32,6 +32,7 @@ import { mutedusersRepository } from '../mutedusers/mutedusers.repository';
 import { In } from 'typeorm';
 import { Block } from '../blocks/block.entity';
 import { BlocksRepository } from '../blocks/blocks.repository';
+import { PostsGateway } from '../post/posts.gateway';
 
 @Injectable()
 export class AuthService {
@@ -50,6 +51,7 @@ export class AuthService {
     private jwtService: JwtService,
     private otpService: OtpService,
     private emailService: EmailService,
+    private postsGateway: PostsGateway,
   ) {}
 
   async signUp(
@@ -303,6 +305,17 @@ export class AuthService {
   }
 
   async followUser(followerId: string, followingId: string): Promise<void> {
+    const follower = await this.usersRepository.findOne({
+      where: { id: followerId },
+    });
+    const following = await this.usersRepository.findOne({
+      where: { id: followingId },
+    });
+
+    if (!follower || !following) {
+      throw new NotFoundException('Follower or following user not found.');
+    }
+
     const block = await this.blocksRepository.findOne({
       where: [
         { blockerId: followerId, blockedId: followingId },
@@ -331,6 +344,13 @@ export class AuthService {
       'followingCount',
       1,
     );
+
+    this.postsGateway.emitFollow({
+      followerId,
+      followingId,
+      followerUsername: follower.username,
+      followingUsername: following.username,
+    });
   }
 
   async unfollowUser(followerId: string, followingId: string): Promise<void> {

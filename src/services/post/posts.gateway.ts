@@ -56,4 +56,13 @@ export class PostsGateway
   public emitPostUnliked(payload: { postId: string; likeCount: number }) {
     this.server.emit('postUnliked', payload);
   }
+
+  public emitFollow(payload: {
+    followerId: string;
+    followingId: string;
+    followerUsername: string;
+    followingUsername: string;
+  }) {
+    this.server.emit('follow', payload);
+  }
 }
