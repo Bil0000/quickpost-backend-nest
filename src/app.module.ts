@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { PostModule } from './services/post/post.module';
 import { SearchService } from './services/search/search.service';
 import { SearchController } from './services/search/search.controller';
+import { CommentsModule } from './services/comments/comments.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { SearchController } from './services/search/search.controller';
     }),
     AuthModule,
     PostModule,
+    CommentsModule,
   ],
   controllers: [SearchController],
   providers: [SearchService],
