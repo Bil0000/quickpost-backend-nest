@@ -305,6 +305,10 @@ export class AuthService {
   }
 
   async followUser(followerId: string, followingId: string): Promise<void> {
+    if (followerId === followingId) {
+      throw new BadRequestException('You cannot follow yourself.');
+    }
+
     const follower = await this.usersRepository.findOne({
       where: { id: followerId },
     });
@@ -327,6 +331,15 @@ export class AuthService {
       throw new ForbiddenException(
         'Following operation is not allowed because of block.',
       );
+    }
+
+    // Check if the follow relationship already exists
+    const existingFollow = await this.followersRepository.findOne({
+      where: { followerId, followingId },
+    });
+
+    if (existingFollow) {
+      throw new ConflictException('You are already following this user.');
     }
 
     // Create a new follow relationship
@@ -354,6 +367,16 @@ export class AuthService {
   }
 
   async unfollowUser(followerId: string, followingId: string): Promise<void> {
+    // Check if the follow relationship exists
+    const existingFollow = await this.followersRepository.findOne({
+      where: { followerId, followingId },
+    });
+
+    if (!existingFollow) {
+      // No follow relationship exists, throw an exception
+      throw new BadRequestException('You are not following this user.');
+    }
+
     // Remove the follow relationship
     await this.followersRepository.delete({ followerId, followingId });
 
