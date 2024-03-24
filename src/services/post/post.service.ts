@@ -91,6 +91,16 @@ export class PostService {
   }
 
   async likePost(userId: string, postId: string): Promise<void> {
+    // Check if the user has already liked the post
+    const existingLike = await this.likesRepository.findOne({
+      where: { userId, postId },
+    });
+
+    // If a like exists, do not add another one and optionally inform the user
+    if (existingLike) {
+      throw new ForbiddenException('You have already liked this post.');
+    }
+
     const like = new Likes();
     like.userId = userId;
     like.postId = postId;
@@ -139,6 +149,11 @@ export class PostService {
     const like = await this.likesRepository.findOne({
       where: { userId, postId },
     });
+
+    if (!like) {
+      return;
+    }
+
     if (like) {
       await this.likesRepository.remove(like);
 
@@ -190,17 +205,25 @@ export class PostService {
 
     if (existingSeenPost) {
       // If the record exists, update its 'seenAt' timestamp to the current time
-      // Assuming there's a 'seenAt' field in the SeenPosts entity to track when the post was seen
       existingSeenPost.seenAt = new Date();
       await this.seenPostsRepository.save(existingSeenPost);
     } else {
-      // If no record exists, create a new seen post record
+      // If no record exists, create a new seen post record and increment view count
       const newSeenPost = this.seenPostsRepository.create({
         userId,
         postId,
         seenAt: new Date(),
       });
       await this.seenPostsRepository.save(newSeenPost);
+
+      // Find the post and increment views
+      const post = await this.postsRepository.findOne({
+        where: { id: postId },
+      });
+      if (post) {
+        post.views += 1;
+        await this.postsRepository.save(post);
+      }
     }
   }
 

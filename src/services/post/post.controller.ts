@@ -45,10 +45,13 @@ export class PostController {
   ) {
     let imageUrl = null;
     if (createPostDto.gifUrl) {
-      imageUrl = createPostDto.gifUrl; // Use the GIF URL directly
+      // If a GIF URL is provided in the request, use it directly
+      imageUrl = createPostDto.gifUrl;
     } else if (file) {
-      imageUrl = `localhost:3000/uploads/${file.filename}`; // Process file upload as before
+      // If an image file is uploaded, use the file's path
+      imageUrl = `localhost:3000/uploads/${file.filename}`;
     }
+    // Pass the imageUrl to the service regardless of its source (GIF URL or file upload)
     return this.postService.createPost(createPostDto, imageUrl, user.id);
   }
 

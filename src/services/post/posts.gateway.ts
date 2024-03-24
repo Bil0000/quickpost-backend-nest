@@ -31,7 +31,6 @@ export class PostsGateway
 
   // Example: Emitting a new post to all connected clients
   public emitNewPost(post: any) {
-    console.log(post);
     this.server.emit('newPost', post);
   }
 
