@@ -43,6 +43,7 @@ export class PostService {
   async createPost(
     createPostDto: CreatePostDto,
     imageUrl: string,
+    videoUrl: string,
     userId: string,
   ): Promise<Posts> {
     const user = await this.usersRepository.findOne({ where: { id: userId } });
@@ -74,6 +75,7 @@ export class PostService {
     const post = this.postsRepository.create({
       caption: createPostDto.caption,
       imageUrl: imageUrl,
+      videoUrl: videoUrl,
       userId: userId,
       username: user.username,
       profileImageUrl: user.profileImageUrl,
@@ -117,8 +119,6 @@ export class PostService {
       throw new NotFoundException('Liker not found');
     }
 
-    // Assuming you have the post entity related to the user entity to get the post owner's ID
-    // Retrieve the post owner's details if needed (e.g., for getting the FCM token later on)
     const postOwner = await this.usersRepository.findOne({
       where: { id: post.userId },
     });
@@ -139,9 +139,7 @@ export class PostService {
     }
   }
 
-  // Assuming you want to format numbers for display
   private formatNumber(number: number): string {
-    // Example implementation - you can customize this as needed
     return new Intl.NumberFormat().format(number);
   }
 

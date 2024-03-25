@@ -11,6 +11,9 @@ export class Posts {
   @Column({ nullable: true })
   imageUrl: string;
 
+  @Column({ nullable: true })
+  videoUrl: string;
+
   @Column()
   userId: string;
 

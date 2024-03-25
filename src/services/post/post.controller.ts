@@ -7,6 +7,7 @@ import {
   Patch,
   Post,
   UploadedFile,
+  UploadedFiles,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
@@ -17,7 +18,10 @@ import { GetUser } from '../auth/get-user.decorator';
 import { Users } from '../auth/user.entity';
 import { AuthGuard } from '@nestjs/passport';
 import { EditPostDto } from './dto/edit-post.dto';
-import { FileInterceptor } from '@nestjs/platform-express';
+import {
+  FileFieldsInterceptor,
+  FileInterceptor,
+} from '@nestjs/platform-express';
 
 @Controller('post')
 export class PostController {
@@ -37,22 +41,42 @@ export class PostController {
 
   @Post('/create')
   @UseGuards(AuthGuard('jwt'))
-  @UseInterceptors(FileInterceptor('image'))
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'image', maxCount: 1 },
+      { name: 'video', maxCount: 1 },
+    ]),
+  )
   async createPost(
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFiles()
+    files: { image?: Express.Multer.File[]; video?: Express.Multer.File[] },
     @Body() createPostDto: CreatePostDto,
     @GetUser() user: Users,
   ) {
-    let imageUrl = null;
+    // Initialize imageURL and videoURL to null
+    let imageUrl: string | null = null;
+    let videoUrl: string | null = null;
+
+    // Handle GIF URLs directly from the body without expecting an uploaded file
     if (createPostDto.gifUrl) {
-      // If a GIF URL is provided in the request, use it directly
       imageUrl = createPostDto.gifUrl;
-    } else if (file) {
-      // If an image file is uploaded, use the file's path
-      imageUrl = `localhost:3000/uploads/${file.filename}`;
+    } else {
+      // Proceed with handling file uploads if any
+      if (files?.image?.[0]) {
+        imageUrl = `localhost:3000/uploads/${files.image[0].filename}`;
+      }
+      if (files?.video?.[0]) {
+        videoUrl = `localhost:3000/uploads/${files.video[0].filename}`;
+      }
     }
-    // Pass the imageUrl to the service regardless of its source (GIF URL or file upload)
-    return this.postService.createPost(createPostDto, imageUrl, user.id);
+
+    // Call your service to process the post creation
+    return this.postService.createPost(
+      createPostDto,
+      imageUrl,
+      videoUrl,
+      user.id,
+    );
   }
 
   @UseGuards(AuthGuard())
