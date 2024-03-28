@@ -32,6 +32,7 @@ export class CommentsService {
         where: { id: parentCommentId },
       });
       comment.parentComment = parentComment || null;
+      comment.isReply = true || false;
     }
 
     this.postsRepository.update(
@@ -94,7 +95,14 @@ export class CommentsService {
     return this.commentsRepository.find({
       where: { postId },
       relations: ['replies'], // Load replies if using nested comments
-      order: { createdAt: 'DESC' }, // Sort comments as needed
+      order: { createdAt: 'DESC', replies: { createdAt: 'DESC' } },
+    });
+  }
+
+  async getUserComments(userId: string): Promise<Comments[]> {
+    return this.commentsRepository.find({
+      where: { userId },
+      order: { createdAt: 'DESC' },
     });
   }
 }

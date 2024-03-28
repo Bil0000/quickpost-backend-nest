@@ -603,11 +603,11 @@ export class AuthService {
     return blockedUsers;
   }
 
-  async findUsernameById(id: string): Promise<{ username: string }> {
+  async findUserById(id: string): Promise<Users> {
     const user = await this.usersRepository.findOneBy({ id });
     if (!user) {
       throw new NotFoundException(`User with ID "${id}" not found`);
     }
-    return { username: user.username };
+    return user;
   }
 }

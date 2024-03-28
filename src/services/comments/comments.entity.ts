@@ -28,7 +28,10 @@ export class Comments {
   parentComment: Comments;
 
   @OneToMany(() => Comments, (comments) => comments.parentComment)
-  replies: Comment[];
+  replies: Comments[];
+
+  @Column({ default: false })
+  isReply: boolean;
 
   @Column({ nullable: true })
   commentImageUrl: string;

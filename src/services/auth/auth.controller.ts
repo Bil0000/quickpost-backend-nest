@@ -371,10 +371,8 @@ export class AuthController {
     return this.authService.getBlockedUsers(user.id);
   }
 
-  @Get(':id/username')
-  async getUsernameById(
-    @Param('id') id: string,
-  ): Promise<{ username: string }> {
-    return this.authService.findUsernameById(id);
+  @Get(':id/userinfo')
+  async getUserInfoById(@Param('id') id: string): Promise<Users> {
+    return this.authService.findUserById(id);
   }
 }

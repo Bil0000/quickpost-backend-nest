@@ -63,4 +63,10 @@ export class CommentsController {
   ): Promise<Comments[]> {
     return this.commentsService.getCommentsByPostId(postId);
   }
+
+  @UseGuards(AuthGuard())
+  @Get('/comments/user/:userId')
+  async getUserPosts(@Param('userId') userId: string): Promise<Comments[]> {
+    return this.commentsService.getUserComments(userId);
+  }
 }
