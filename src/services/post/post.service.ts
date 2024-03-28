@@ -225,7 +225,11 @@ export class PostService {
     }
   }
 
-  async getAllPosts(requesterId: string): Promise<any[]> {
+  async getAllPosts(
+    requesterId: string,
+    limit: number,
+    offset: number,
+  ): Promise<any[]> {
     // Change return type to any[] to include custom properties
     // Handle blocks and mutes
     const blocks = await this.blocksRepository.find({
@@ -262,6 +266,8 @@ export class PostService {
         //  id: Not(In(seenPostIds))
       },
       order: { createdat: 'DESC' },
+      skip: offset,
+      take: limit,
     });
 
     // Enhance posts with privacy checks and liked status

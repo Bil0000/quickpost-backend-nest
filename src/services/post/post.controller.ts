@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UploadedFile,
   UploadedFiles,
   UseGuards,
@@ -99,8 +100,12 @@ export class PostController {
 
   @UseGuards(AuthGuard())
   @Get('/posts')
-  async getAllPosts(@GetUser() user: Users): Promise<Posts[]> {
-    return this.postService.getAllPosts(user.id);
+  async getAllPosts(
+    @Query('limit') limit: number,
+    @Query('offset') offset: number,
+    @GetUser() user: Users,
+  ): Promise<Posts[]> {
+    return this.postService.getAllPosts(user.id, limit, offset);
   }
 
   @Get('/user/:userId/post-count')
