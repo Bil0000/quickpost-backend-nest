@@ -16,6 +16,7 @@ import { mutedusers } from '../mutedusers/mutedusers.entity';
 import { Block } from '../blocks/block.entity';
 import { MulterModule } from '@nestjs/platform-express';
 import { PostsGateway } from '../post/posts.gateway';
+import { Comments } from '../comments/comments.entity';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { PostsGateway } from '../post/posts.gateway';
       Likes,
       mutedusers,
       Block,
+      Comments,
     ]),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({

@@ -33,6 +33,8 @@ import { In } from 'typeorm';
 import { Block } from '../blocks/block.entity';
 import { BlocksRepository } from '../blocks/blocks.repository';
 import { PostsGateway } from '../post/posts.gateway';
+import { Comments } from '../comments/comments.entity';
+import { CommentsRepository } from '../comments/comments.repository';
 
 @Injectable()
 export class AuthService {
@@ -48,6 +50,8 @@ export class AuthService {
     private mutedUsersRepository: mutedusersRepository,
     @InjectRepository(Block)
     private blocksRepository: BlocksRepository,
+    @InjectRepository(Comments)
+    private commentsRepository: CommentsRepository,
     private jwtService: JwtService,
     private otpService: OtpService,
     private emailService: EmailService,
@@ -488,25 +492,33 @@ export class AuthService {
   }
 
   async deleteUserById(userId: string): Promise<void> {
-    // First, delete all posts by the user
-    const userPosts = await this.postsRepository.find({ where: { userId } });
-    await this.postsRepository.remove(userPosts);
-
-    // Then, delete all followers and followings
-    const followers = await this.followersRepository.find({
-      where: [{ followerId: userId }, { followingId: userId }],
-    });
-    await this.followersRepository.remove(followers);
-
-    // also delete all likes for the user
-    const likes = await this.likesRepository.find({ where: { userId } });
-    await this.likesRepository.remove(likes);
-
-    // Finally, delete the user
-    const user = await this.usersRepository.findOne({ where: { id: userId } });
+    const user = await this.usersRepository.findOneBy({ id: userId });
     if (!user) {
       throw new NotFoundException('User not found');
     }
+
+    // Delete posts and all related data like comments and likes
+    const posts = await this.postsRepository.findBy({ userId: userId });
+    for (const post of posts) {
+      await this.likesRepository.delete({ postId: post.id }); // Delete likes
+      await this.commentsRepository.delete({ postId: post.id }); // Delete comments
+      // Add any other related deletions here
+    }
+    await this.postsRepository.remove(posts); // Remove the user's posts
+
+    // Delete followings and followers
+    await this.followersRepository.delete({ followerId: userId });
+    await this.followersRepository.delete({ followingId: userId });
+
+    // Delete muted users
+    await this.mutedUsersRepository.delete({ muterId: userId });
+    await this.mutedUsersRepository.delete({ mutedId: userId });
+
+    // Delete blocked users
+    await this.blocksRepository.delete({ blockerId: userId });
+    await this.blocksRepository.delete({ blockedId: userId });
+
+    // Finally, delete the user itself
     await this.usersRepository.remove(user);
   }
 

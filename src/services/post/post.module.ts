@@ -15,6 +15,7 @@ import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { SeenPosts } from '../seenposts/seenposts.entity';
 import { PostsGateway } from './posts.gateway';
+import { Comments } from '../comments/comments.entity';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { PostsGateway } from './posts.gateway';
       mutedusers,
       Block,
       SeenPosts,
+      Comments,
     ]),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     MulterModule.register({

@@ -22,6 +22,8 @@ import { BlocksRepository } from '../blocks/blocks.repository';
 import { SeenPosts } from '../seenposts/seenposts.entity';
 import { seenPostsRepository } from '../seenposts/seenposts.repository';
 import { PostsGateway } from './posts.gateway';
+import { Comments } from '../comments/comments.entity';
+import { CommentsRepository } from '../comments/comments.repository';
 
 @Injectable()
 export class PostService {
@@ -37,6 +39,8 @@ export class PostService {
     private blocksRepository: BlocksRepository,
     @InjectRepository(SeenPosts)
     private seenPostsRepository: seenPostsRepository,
+    @InjectRepository(Comments)
+    private commentsRepository: CommentsRepository,
     private postsGateway: PostsGateway,
   ) {}
 
@@ -322,6 +326,108 @@ export class PostService {
     return combinedPosts;
   }
 
+  async getFollowingPosts(
+    requesterId: string,
+    limit: number,
+    offset: number,
+  ): Promise<any[]> {
+    // Fetch list of user IDs that the requester is following
+    const following = await this.followersRepository.find({
+      where: { followerId: requesterId },
+    });
+    const followingIds = following.map((f) => f.followingId);
+
+    // Combine with blocked and muted user checks as previously implemented
+    const blocks = await this.blocksRepository.find({
+      where: [{ blockerId: requesterId }, { blockedId: requesterId }],
+    });
+    const blockUserIds = blocks.flatMap((block) =>
+      [block.blockerId, block.blockedId].filter((id) => id !== requesterId),
+    );
+
+    const mutes = await this.mutedUsersRepository.find({
+      where: { muterId: requesterId },
+    });
+    const muteUserIds = mutes.map((mute) => mute.mutedId);
+
+    // Exclude blocked and muted users from the following list
+    const excludedUserIds = [...new Set([...blockUserIds, ...muteUserIds])];
+    const eligibleFollowingIds = followingIds.filter(
+      (id) => !excludedUserIds.includes(id),
+    );
+
+    const seenPosts = await this.seenPostsRepository.find({
+      where: { userId: requesterId },
+    });
+    const seenPostIds = seenPosts.map((seen) => seen.postId);
+
+    const likedPostsByFollowing = await this.getLikedPostsByFollowing(
+      requesterId,
+      excludedUserIds,
+      seenPostIds,
+    );
+
+    // Fetch posts from users that the requester is following, excluding blocked/muted users
+    const posts = await this.postsRepository.find({
+      where: {
+        userId: In(eligibleFollowingIds),
+      },
+      order: { createdat: 'DESC' },
+      skip: offset,
+      take: limit,
+    });
+
+    const enhancedPosts = await Promise.all(
+      posts.map(async (post) => {
+        const isPrivate = (
+          await this.usersRepository.findOne({ where: { id: post.userId } })
+        ).isPrivate;
+        const isFollower = await this.followersRepository.findOne({
+          where: { followerId: requesterId, followingId: post.userId },
+        });
+        if (isPrivate && !isFollower && post.userId !== requesterId) {
+          return null; // Exclude private posts from non-followed users
+        }
+
+        // Check if the post is liked by the current user
+        // const like = await this.likesRepository.findOne({
+        //   where: { userId: requesterId, postId: post.id },
+        // });
+        const isLikedByCurrentUser =
+          (await this.likesRepository.findOne({
+            where: { userId: requesterId, postId: post.id },
+          })) != null;
+
+        return { ...post, isLikedByCurrentUser };
+      }),
+    );
+
+    // Filter out null values (private posts from non-followed users)
+    const filteredEnhancedPosts = enhancedPosts.filter((post) => post !== null);
+
+    const userLikes = await this.likesRepository.find({
+      where: { userId: requesterId },
+    });
+    const likedPostIds = new Set(userLikes.map((like) => like.postId));
+
+    // Deduplicate posts by combining likedPostsByFollowing and general posts, prioritizing liked posts
+    const postIdsSet = new Set(likedPostsByFollowing.map((post) => post.id));
+    const combinedPosts = [
+      ...likedPostsByFollowing.map((post) => ({
+        ...post,
+        isLikedByCurrentUser: likedPostIds.has(post.id),
+      })),
+      ...filteredEnhancedPosts
+        .filter((post) => !postIdsSet.has(post.id))
+        .map((post) => ({
+          ...post,
+          isLikedByCurrentUser: likedPostIds.has(post.id),
+        })),
+    ];
+
+    return combinedPosts;
+  }
+
   async getLikedPostsByFollowing(
     requesterId: string,
     excludedUserIds: string[],
@@ -365,10 +471,16 @@ export class PostService {
     });
   }
 
-  async getUserPosts(userId: string): Promise<Posts[]> {
+  async getUserPosts(
+    userId: string,
+    limit: number,
+    offset: number,
+  ): Promise<Posts[]> {
     return this.postsRepository.find({
       where: { userId },
       order: { createdat: 'DESC' },
+      skip: offset,
+      take: limit,
     });
   }
 
@@ -382,19 +494,47 @@ export class PostService {
 
     // Check if the user ID matches the post's user ID
     if (post.userId !== user.id) {
-      throw new ForbiddenException(
-        "You dont't have access to delete this post",
-      );
+      throw new ForbiddenException("You don't have access to delete this post");
     }
 
-    const result = await this.postsRepository.delete({ id: postId });
+    // Delete likes related to the post
+    await this.likesRepository.delete({ postId: post.id });
 
+    // Delete seen posts (views) related to the post
+    await this.seenPostsRepository.delete({ postId: post.id });
+
+    // Delete comments related to the post
+    await this.deleteCommentsByPostId(post.id);
+
+    // Finally, delete the post itself
+    const result = await this.postsRepository.delete({ id: postId });
     this.postsGateway.emitDeletePost({ id: postId });
 
     // Check if any record was affected
     if (result.affected === 0) {
       throw new NotFoundException(`Post with ID "${postId}" not found`);
     }
+  }
+
+  async deleteCommentsByPostId(postId: string): Promise<void> {
+    const comments = await this.commentsRepository.find({
+      where: { postId: postId },
+    });
+    for (const comment of comments) {
+      await this.recursiveDeleteComment(comment.id);
+    }
+  }
+
+  async recursiveDeleteComment(commentId: string): Promise<void> {
+    const replies = await this.commentsRepository.find({
+      where: { parentComment: { id: commentId } },
+    });
+
+    for (const reply of replies) {
+      await this.recursiveDeleteComment(reply.id);
+    }
+
+    await this.commentsRepository.delete({ id: commentId });
   }
 
   async editPost(

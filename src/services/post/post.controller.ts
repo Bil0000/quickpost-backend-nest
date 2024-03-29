@@ -7,7 +7,6 @@ import {
   Patch,
   Post,
   Query,
-  UploadedFile,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
@@ -19,10 +18,7 @@ import { GetUser } from '../auth/get-user.decorator';
 import { Users } from '../auth/user.entity';
 import { AuthGuard } from '@nestjs/passport';
 import { EditPostDto } from './dto/edit-post.dto';
-import {
-  FileFieldsInterceptor,
-  FileInterceptor,
-} from '@nestjs/platform-express';
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
 
 @Controller('post')
 export class PostController {
@@ -108,6 +104,16 @@ export class PostController {
     return this.postService.getAllPosts(user.id, limit, offset);
   }
 
+  @UseGuards(AuthGuard())
+  @Get('/following-posts')
+  async getFollowingPosts(
+    @Query('limit') limit: number,
+    @Query('offset') offset: number,
+    @GetUser() user: Users,
+  ): Promise<Posts[]> {
+    return this.postService.getFollowingPosts(user.id, limit, offset);
+  }
+
   @Get('/user/:userId/post-count')
   async getPostCountByUserId(
     @Param('userId') userId: string,
@@ -117,8 +123,12 @@ export class PostController {
   }
 
   @Get('/user/:userId/posts')
-  async getUserPosts(@Param('userId') userId: string): Promise<Posts[]> {
-    return this.postService.getUserPosts(userId);
+  async getUserPosts(
+    @Param('userId') userId: string,
+    @Query('limit') limit: number,
+    @Query('offset') offset: number,
+  ): Promise<Posts[]> {
+    return this.postService.getUserPosts(userId, limit, offset);
   }
 
   @UseGuards(AuthGuard())

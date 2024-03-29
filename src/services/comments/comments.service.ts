@@ -59,11 +59,38 @@ export class CommentsService {
       );
     }
 
-    await this.commentsRepository.remove(comment);
+    await this.recursiveDelete(commentId);
 
     // Optionally, decrement the post's comment count
-    if (comment.postId) {
-      this.postsRepository.decrement({ id: comment.postId }, 'commentCount', 1);
+    // if (comment.postId) {
+    //   this.postsRepository.decrement({ id: comment.postId }, 'commentCount', 1);
+    // }
+  }
+
+  private async recursiveDelete(commentId: string): Promise<void> {
+    const replies = await this.commentsRepository.find({
+      where: { parentComment: { id: commentId } },
+    });
+
+    for (const reply of replies) {
+      await this.recursiveDelete(reply.id);
+    }
+
+    const comment = await this.commentsRepository.findOne({
+      where: { id: commentId },
+    });
+
+    if (comment) {
+      await this.commentsRepository.remove(comment);
+
+      // Decrement the post's comment count for each deleted comment
+      if (comment.postId) {
+        this.postsRepository.decrement(
+          { id: comment.postId },
+          'commentCount',
+          1,
+        );
+      }
     }
   }
 
