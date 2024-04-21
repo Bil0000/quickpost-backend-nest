@@ -375,4 +375,15 @@ export class AuthController {
   async getUserInfoById(@Param('id') id: string): Promise<Users> {
     return this.authService.findUserById(id);
   }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post('/subscribe')
+  async subscribe(@GetUser() user: Users): Promise<any> {
+    return this.authService.subscribe(user.id);
+  }
+  @UseGuards(AuthGuard('jwt'))
+  @Post('/unsubscribe')
+  async unSubscribe(@GetUser() user: Users): Promise<any> {
+    return this.authService.unSubscribe(user.id);
+  }
 }

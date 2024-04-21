@@ -622,4 +622,28 @@ export class AuthService {
     }
     return user;
   }
+
+  async subscribe(id: string): Promise<any> {
+    const user = await this.usersRepository.findOneBy({ id });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    user.isPaid = true;
+    await this.usersRepository.save(user);
+    return { message: 'Subscribed successfully!' };
+  }
+
+  async unSubscribe(id: string): Promise<any> {
+    const user = await this.usersRepository.findOneBy({ id });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    user.isPaid = false;
+    await this.usersRepository.save(user);
+    return { message: 'Unsubscribed successfully!' };
+  }
 }

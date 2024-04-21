@@ -52,6 +52,9 @@ export class Users {
   @Column({ default: true })
   allowTagging: boolean;
 
+  @Column({ default: false })
+  isPaid: boolean;
+
   @Column({ type: 'timestamp', nullable: true })
   lastLogoutAt: Date;
 
