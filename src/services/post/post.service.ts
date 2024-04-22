@@ -12,7 +12,7 @@ import { UsersRepository } from '../auth/users.repository';
 import { LikesRepository } from '../likes/likes.repository';
 import { Likes } from '../likes/like.entity';
 import { EditPostDto } from './dto/edit-post.dto';
-import { In, Like, Not } from 'typeorm';
+import { In, Like, MoreThan, Not } from 'typeorm';
 import { Followers } from '../followers/follower.entity';
 import { FollowersRepository } from '../followers/followers.repository';
 import { mutedusers } from '../mutedusers/mutedusers.entity';
@@ -132,6 +132,10 @@ export class PostService {
 
     if (post) {
       post.likeCount += 1;
+      post.engagementScore = this.calculateEngagementScore(
+        post.views,
+        post.likeCount,
+      );
       await this.postsRepository.save(post);
       this.postsGateway.emitPostLiked({
         postId: post.id,
@@ -145,6 +149,11 @@ export class PostService {
 
   private formatNumber(number: number): string {
     return new Intl.NumberFormat().format(number);
+  }
+
+  private calculateEngagementScore(views: number, likes: number): number {
+    // Define a formula for calculating engagement score based on views and likes
+    return views + likes * 2; // Example: views plus double the likes
   }
 
   async unlikePost(userId: string, postId: string): Promise<void> {
@@ -224,6 +233,10 @@ export class PostService {
       });
       if (post) {
         post.views += 1;
+        post.engagementScore = this.calculateEngagementScore(
+          post.views,
+          post.likeCount,
+        );
         await this.postsRepository.save(post);
       }
     }
@@ -234,96 +247,79 @@ export class PostService {
     limit: number,
     offset: number,
   ): Promise<any[]> {
-    // Change return type to any[] to include custom properties
-    // Handle blocks and mutes
+    const excludedUserIds = await this.getExcludedUserIds(requesterId);
+    const seenPostIds = await this.getSeenPostIds(requesterId);
+
+    // Fetch posts that are not from excluded users and sort by engagementScore
+    let posts = await this.postsRepository.find({
+      where: {
+        userId: Not(In(excludedUserIds)),
+      },
+      order: {
+        engagementScore: 'DESC', // Sort by engagement score
+        createdat: 'DESC', // Secondary sorting by creation date
+      },
+      skip: offset,
+      take: limit,
+    });
+
+    // Check if additional logic for seen/unseen posts is needed based on your use case
+    if (posts.length < limit) {
+      const additionalPostsNeeded = limit - posts.length;
+      const seenPosts = await this.postsRepository.find({
+        where: {
+          userId: Not(In(excludedUserIds)),
+          id: In(seenPostIds),
+        },
+        order: {
+          engagementScore: 'DESC',
+          createdat: 'DESC',
+        },
+        take: additionalPostsNeeded,
+      });
+      posts = [...posts, ...seenPosts];
+    }
+
+    // Enrich posts with additional data such as whether the current user has liked them
+    const enhancedPosts = await this.enrichPosts(posts, requesterId);
+    return enhancedPosts;
+  }
+
+  private async getExcludedUserIds(requesterId: string): Promise<string[]> {
     const blocks = await this.blocksRepository.find({
       where: [{ blockerId: requesterId }, { blockedId: requesterId }],
     });
     const blockUserIds = blocks.flatMap((block) =>
       [block.blockerId, block.blockedId].filter((id) => id !== requesterId),
     );
-
     const mutes = await this.mutedUsersRepository.find({
       where: { muterId: requesterId },
     });
     const muteUserIds = mutes.map((mute) => mute.mutedId);
+    return [...new Set([...blockUserIds, ...muteUserIds])];
+  }
 
-    const excludedUserIds = [...new Set([...blockUserIds, ...muteUserIds])];
-
-    // Exclude seen posts
+  private async getSeenPostIds(requesterId: string): Promise<string[]> {
     const seenPosts = await this.seenPostsRepository.find({
       where: { userId: requesterId },
     });
-    const seenPostIds = seenPosts.map((seen) => seen.postId);
+    return seenPosts.map((seen) => seen.postId);
+  }
 
-    // Prepare to fetch posts liked by the requester's followings
-    const likedPostsByFollowing = await this.getLikedPostsByFollowing(
-      requesterId,
-      excludedUserIds,
-      seenPostIds,
-    );
-
-    // Fetch all posts considering blocks, mutes, and privacy
-    const posts = await this.postsRepository.find({
-      where: {
-        userId: Not(In(excludedUserIds)),
-        //  id: Not(In(seenPostIds))
-      },
-      order: { createdat: 'DESC' },
-      skip: offset,
-      take: limit,
-    });
-
-    // Enhance posts with privacy checks and liked status
-    const enhancedPosts = await Promise.all(
+  private async enrichPosts(
+    posts: Posts[],
+    requesterId: string,
+  ): Promise<any[]> {
+    return Promise.all(
       posts.map(async (post) => {
-        const isPrivate = (
-          await this.usersRepository.findOne({ where: { id: post.userId } })
-        ).isPrivate;
-        const isFollower = await this.followersRepository.findOne({
-          where: { followerId: requesterId, followingId: post.userId },
-        });
-        if (isPrivate && !isFollower && post.userId !== requesterId) {
-          return null; // Exclude private posts from non-followed users
-        }
-
-        // Check if the post is liked by the current user
-        // const like = await this.likesRepository.findOne({
-        //   where: { userId: requesterId, postId: post.id },
-        // });
-        const isLikedByCurrentUser =
-          (await this.likesRepository.findOne({
+        const isLikedByCurrentUser = Boolean(
+          await this.likesRepository.findOne({
             where: { userId: requesterId, postId: post.id },
-          })) != null;
-
+          }),
+        );
         return { ...post, isLikedByCurrentUser };
       }),
     );
-
-    // Filter out null values (private posts from non-followed users)
-    const filteredEnhancedPosts = enhancedPosts.filter((post) => post !== null);
-
-    const userLikes = await this.likesRepository.find({
-      where: { userId: requesterId },
-    });
-    const likedPostIds = new Set(userLikes.map((like) => like.postId));
-
-    // Deduplicate posts by combining likedPostsByFollowing and general posts, prioritizing liked posts
-    const postIdsSet = new Set(likedPostsByFollowing.map((post) => post.id));
-    const combinedPosts = [
-      ...likedPostsByFollowing.map((post) => ({
-        ...post,
-        isLikedByCurrentUser: likedPostIds.has(post.id),
-      })),
-      ...filteredEnhancedPosts
-        .filter((post) => !postIdsSet.has(post.id))
-        .map((post) => ({
-          ...post,
-          isLikedByCurrentUser: likedPostIds.has(post.id),
-        })),
-    ];
-
-    return combinedPosts;
   }
 
   async getFollowingPosts(

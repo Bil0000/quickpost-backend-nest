@@ -33,5 +33,8 @@ export class Posts {
   views: number;
 
   @Column({ default: 0 })
+  engagementScore: number;
+
+  @Column({ default: 0 })
   commentCount: number;
 }
